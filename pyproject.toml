@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "whatsapp-support-chatbot"
+version = "0.1.0"
+packages = [{ include = "whatsapp-support-chatbot" }]
+description = "Powered by Langchain and FastAPI"
+authors = ["Victor <vtorrealbalp@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.111.0"
+uvicorn = "^0.30.1"
+langchain = "^0.2.6"
+langchain-community = "^0.2.6"
+langchain-core = "^0.2.10"
+langsmith = "^0.1.82"
+python-dotenv = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+
