@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "whatsapp-support-chatbot"
 version = "0.1.0"
-packages = [{ include = "whatsapp-support-chatbot" }]
+packages = [{ include = "whatsapp_support_chatbot" }]
 description = "Powered by Langchain and FastAPI"
 authors = ["Victor <vtorrealbalp@gmail.com>"]
 license = "MIT"
@@ -16,6 +16,7 @@ langchain-community = "^0.2.6"
 langchain-core = "^0.2.10"
 langsmith = "^0.1.82"
 python-dotenv = "^1.0.1"
+langchain-openai = "^0.1.10"
 
 
 [build-system]
