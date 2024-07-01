@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "whatsapp-support-chatbot"
+name = "src"
 version = "0.1.0"
-packages = [{ include = "whatsapp_support_chatbot" }]
+packages = [{ include = "src" }]
 description = "Powered by Langchain and FastAPI"
 authors = ["Victor <vtorrealbalp@gmail.com>"]
 license = "MIT"
