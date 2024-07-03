@@ -2,17 +2,22 @@ import os
 import dotenv
 import json
 import requests
+import uuid
+
 
 from datetime import datetime
 from typing import Annotated
 from typing import Literal
 from typing_extensions import TypedDict
+from langchain import hub
 from langchain_anthropic import ChatAnthropic
 from langchain_community.agent_toolkits.load_tools import load_tools
 from langchain_core.messages import ToolMessage
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
 from langchain_core.tools import tool
-from langgraph.prebuilt import ToolNode
-from langgraph.graph import StateGraph
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import AnyMessage, add_messages
 
 dotenv.load_dotenv()
@@ -25,30 +30,39 @@ LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # 2. define tool node and tools
-class BasicToolNode:
-    def __init__(self, tools:list) -> None:
-        self.tools_by_name = {tool.name: tool for tool in tools}
-        
-    def __call__(self, inputs: dict):
-        if messages := inputs.get("messages", []):
-            message = messages[-1]
-        else:
-            raise ValueError("No messages found in inputs")
-        outputs = []
-        for tool_call in message.tool_calls:
-            tool_result = self.tools_by_name[tool_call["name"]].invoke(
-                tool_call["args"]
+def handle_tool_error(state) -> dict:
+    error = state.get("error")
+    tool_calls = state["messages"][-1].tool_calls
+    return {
+        "messages": [
+            ToolMessage(
+                content=f"Error: {repr(error)}\n please fix your mistakes.",
+                tool_call_id=tc["id"],
             )
-            outputs.append(
-                ToolMessage(
-                    content= json.dumps(tool_result),
-                    name=tool_call["name"],
-                    tool_call_id=tool_call["id"],
-                )
-            )
-        return {"messages": outputs}
+            for tc in tool_calls
+        ]
+    }
+    
+    
+def create_tool_node_with_fallback(tools:list) -> dict:
+    return ToolNode(tools).with_fallbacks(
+        [RunnableLambda(handle_tool_error)], exception_key="error"
+    )
 
-
+def _print_event(event: dict, _printed: set, max_length=1500):
+    current_state = event.get("dialog_state")
+    if current_state:
+        print("Currently in: ", current_state[-1])
+    message = event.get("messages")
+    if message:
+        if isinstance(message, list):
+            message = message[-1]
+        if message.id not in _printed:
+            msg_repr = message.pretty_repr(html=True)
+            if len(msg_repr) > max_length:
+                msg_repr = msg_repr[:max_length] + " ... (truncated)"
+            print(msg_repr)
+            _printed.add(message.id)
     
 @tool("check_calendar")
 def check_calendar(date: str) -> dict:
@@ -67,31 +81,85 @@ def check_calendar(date: str) -> dict:
         return {"error": "{response.status_code} bad request"}
         
 
-tools = [check_calendar]
-check_calendar.invoke("7/1/2024")
-tool_node = BasicToolNode(tools=[tools])
 
-# 3. graph state
+# 3. define chatbot node
 class State(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
+    messages: Annotated[list, add_messages]
+class Assistant:
+    def __init__(self, runnable: Runnable):
+        self.runnable = runnable
+
+    def __call__(self, state: State, config: RunnableConfig):
+        while True:
+            configuration = config.get("configurable", {})
+            user_id = configuration.get("user_id", None)
+            state = {**state, "user_id": user_id}
+            result = self.runnable.invoke(state)
+            # If the LLM happens to return an empty response, we will re-prompt it
+            # for an actual response.
+            if not result.tool_calls and (
+                not result.content
+                or isinstance(result.content, list)
+                and not result.content[0].get("text")
+            ):
+                messages = state["messages"] + [("user", "Respond with a real output.")]
+                state = {**state, "messages": messages}
+            else:
+                break
+        return {"messages": [result]}
+            
     
-graph_builder = StateGraph(State)
-
-# 4. define chatbot node
+    
 llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=1)
-llm_with_tools = llm.bind_tools(tool_node)
 
-def chatbot(state: State):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
 
+primary_assistant_prompt = hub.pull("customer_support_chatbot").partial(time=datetime.now())
+
+part_1_tools = [check_calendar]
+# check_calendar.invoke("7/1/2024") -> this is a test // {"slots":{"2024-07-02":[{"time":"2024-07-02T09:00:00-04:00"}]}}
+
+part_1_assistant_runnable = primary_assistant_prompt | llm.bind_tools(part_1_tools)
 # 5. define graph workflow
-graph_builder.add_node("chatbot", chatbot)
 
-graph_builder.add_node("tools", tool_node)
 
-graph_builder.set_entry_point("chatbot")
+    
+builder = StateGraph(State)
 
-graph_builder.set_finish_point("chatbot")
 
-graph = graph_builder.compile()
+# Define nodes: these do the work
+builder.add_node("assistant", Assistant(part_1_assistant_runnable))
+builder.add_node("tools", create_tool_node_with_fallback(part_1_tools))
+# Define edges: these determine how the control flow moves
+builder.set_entry_point("assistant")
+builder.add_conditional_edges(
+    "assistant",
+    tools_condition,
+)
+builder.add_edge("tools", "assistant")
+
+# The checkpointer lets the graph persist its state
+# this is a complete memory for the entire graph.
+memory = SqliteSaver.from_conn_string(":memory:")
+part_1_graph = builder.compile(checkpointer=memory)
+thread_id = str(uuid.uuid4())
+
+config = {
+    "configurable": {
+        "user_id": "21458856",
+        # Checkpoints are accessed by thread_id
+        "thread_id": thread_id,
+    }
+} 
+
+
+while True:
+    user_input = input("User: ")
+    if user_input.lower() in ["quit", "exit", "q"]:
+        print("Goodbye!")
+        break
+    for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
+        for value in event.values():
+            print("Assistant:", value["messages"][0].content)
+            
+
 
