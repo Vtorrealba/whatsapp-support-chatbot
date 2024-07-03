@@ -3,7 +3,7 @@ import dotenv
 import json
 import requests
 import uuid
-
+import streamlit as st
 
 from datetime import datetime
 from typing import Annotated
@@ -78,7 +78,7 @@ def check_calendar(date: str) -> dict:
         else:
             return {"availability": response_data["slots"]}
     else:
-        return {"error": "{response.status_code} bad request"}
+        return {"error": f"{response.status_code} bad request"}
         
 
 
@@ -121,11 +121,7 @@ part_1_tools = [check_calendar]
 part_1_assistant_runnable = primary_assistant_prompt | llm.bind_tools(part_1_tools)
 # 5. define graph workflow
 
-
-    
 builder = StateGraph(State)
-
-
 # Define nodes: these do the work
 builder.add_node("assistant", Assistant(part_1_assistant_runnable))
 builder.add_node("tools", create_tool_node_with_fallback(part_1_tools))
@@ -151,15 +147,46 @@ config = {
     }
 } 
 
+# 6. streamlit interface
+st.set_page_config(page_title="Sweep 🏠",initial_sidebar_state="collapsed")
 
-while True:
-    user_input = input("User: ")
+st.markdown(
+    """
+    <style>
+        div#root{
+            font-family: Arial, sans-serif;
+            background: white;
+            color: black;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.title("🏠 Sweep Home Services")
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Function to handle user input
+def handle_input():
+    user_input = st.session_state.input_text
+    st.session_state.chat_input(placeholder="the sink is broken")
     if user_input.lower() in ["quit", "exit", "q"]:
-        print("Goodbye!")
-        break
-    for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
-        for value in event.values():
-            print("Assistant:", value["messages"][0].content)
-            
+        st.session_state.messages.append({"role": "assistant", "content": "Goodbye!"})
+    else:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
+            for value in event.values():
+                st.session_state.messages.join({"role": "assistant", "content": value["messages"][0].content})
 
+# User input text box
+st.text_input("How can we help 👨‍🔧? ", key="input_text", on_change=handle_input)
 
+# Display chat history
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(f"**User:** {message['content']}")
+    else:
+        st.markdown(f"**Assistant:** {message['content']}")

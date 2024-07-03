@@ -21,6 +21,8 @@ langgraph = "^0.1.4"
 ipython = "^8.26.0"
 langchain-anthropic = "^0.1.17"
 langchainhub = "^0.1.20"
+streamlit = "^1.36.0"
+streamlit-chat = "^0.1.1"
 
 
 [build-system]
