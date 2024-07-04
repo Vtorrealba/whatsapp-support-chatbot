@@ -172,14 +172,14 @@ if "messages" not in st.session_state:
 # Function to handle user input
 def handle_input():
     user_input = st.session_state.input_text
-    st.session_state.chat_input(placeholder="the sink is broken")
+    st.session_state.input_text = ""
     if user_input.lower() in ["quit", "exit", "q"]:
         st.session_state.messages.append({"role": "assistant", "content": "Goodbye!"})
     else:
         st.session_state.messages.append({"role": "user", "content": user_input})
         for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
             for value in event.values():
-                st.session_state.messages.join({"role": "assistant", "content": value["messages"][0].content})
+                st.session_state.messages.append({"role": "assistant", "content": value["messages"][0].content})
 
 # User input text box
 st.text_input("How can we help 👨‍🔧? ", key="input_text", on_change=handle_input)
