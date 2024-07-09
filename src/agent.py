@@ -27,9 +27,11 @@ os.environ['LANGCHAIN_PROJECT'] = "Sweep chatbot"
 os.environ['LANGCHAIN_TRACING_V2'] = "true"
 os.environ['LANGCHAIN_ENDPOINT'] = "https://api.smith.langchain.com"
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 # 2. define tool node and tools
+
+# tool error handling
 def handle_tool_error(state) -> dict:
     error = state.get("error")
     tool_calls = state["messages"][-1].tool_calls
@@ -47,23 +49,8 @@ def handle_tool_error(state) -> dict:
 def create_tool_node_with_fallback(tools:list) -> dict:
     return ToolNode(tools).with_fallbacks(
         [RunnableLambda(handle_tool_error)], exception_key="error"
-    )
+    )                                           
 
-def _print_event(event: dict, _printed: set, max_length=1500):
-    current_state = event.get("dialog_state")
-    if current_state:
-        print("Currently in: ", current_state[-1])
-    message = event.get("messages")
-    if message:
-        if isinstance(message, list):
-            message = message[-1]
-        if message.id not in _printed:
-            msg_repr = message.pretty_repr(html=True)
-            if len(msg_repr) > max_length:
-                msg_repr = msg_repr[:max_length] + " ... (truncated)"
-            print(msg_repr)
-            _printed.add(message.id)
-    
 @tool("check_calendar")
 def check_calendar(date: str) -> dict:
     """Check the availability of a date provided by the user in the calendar. 
@@ -80,11 +67,14 @@ def check_calendar(date: str) -> dict:
     else:
         return {"error": f"{response.status_code} bad request"}
         
+tools = [check_calendar]
 
-
-# 3. define chatbot node
+# 3. define state
 class State(TypedDict):
     messages: Annotated[list, add_messages]
+    
+
+# 4. assistant node
 class Assistant:
     def __init__(self, runnable: Runnable):
         self.runnable = runnable
@@ -113,18 +103,20 @@ class Assistant:
 llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=1)
 
 
+#5. bind tools node to llm
 primary_assistant_prompt = hub.pull("customer_support_chatbot").partial(time=datetime.now())
 
-part_1_tools = [check_calendar]
-# check_calendar.invoke("7/1/2024") -> this is a test // {"slots":{"2024-07-02":[{"time":"2024-07-02T09:00:00-04:00"}]}}
+part_1_assistant_runnable = primary_assistant_prompt | llm.bind_tools(tools)
 
-part_1_assistant_runnable = primary_assistant_prompt | llm.bind_tools(part_1_tools)
-# 5. define graph workflow
 
+# 6. define graph workflow
 builder = StateGraph(State)
+
 # Define nodes: these do the work
 builder.add_node("assistant", Assistant(part_1_assistant_runnable))
-builder.add_node("tools", create_tool_node_with_fallback(part_1_tools))
+builder.add_node("tools", create_tool_node_with_fallback(tools))
+
+
 # Define edges: these determine how the control flow moves
 builder.set_entry_point("assistant")
 builder.add_conditional_edges(
@@ -134,6 +126,7 @@ builder.add_conditional_edges(
 builder.add_edge("tools", "assistant")
 
 # The checkpointer lets the graph persist its state
+
 # this is a complete memory for the entire graph.
 memory = SqliteSaver.from_conn_string(":memory:")
 part_1_graph = builder.compile(checkpointer=memory)
@@ -147,7 +140,8 @@ config = {
     }
 } 
 
-# 6. streamlit interface
+
+# 7. streamlit interface
 st.set_page_config(page_title="Sweep 🏠",initial_sidebar_state="collapsed")
 
 st.markdown(
@@ -190,3 +184,4 @@ for message in st.session_state.messages:
         st.markdown(f"**User:** {message['content']}")
     else:
         st.markdown(f"**Assistant:** {message['content']}")
+
