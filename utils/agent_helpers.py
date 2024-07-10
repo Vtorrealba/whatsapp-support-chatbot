@@ -1,4 +1,9 @@
-"""Helper functions for the agent to enhance visibility for easier debugging"""
+"""Helper functions for the agent to enhance visibility and debug easier"""
+from langchain.prompts import ChatPromptTemplate
+
+def _tool_prompt_loader(promptName: ChatPromptTemplate) -> str:
+    return promptName.messages[0].prompt.template
+
 
 #pretty print helper
 def _print_event(event: dict, _printed: set, max_length=1500):
