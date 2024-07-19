@@ -35,7 +35,7 @@ def predict_llm_answer(example: dict) -> dict:
   """
   predict the llm response for answer evaluation
   """
-  msg = {"input": ("user", example["input"])}
+  msg = {"message": ("user", example["input"])}
   message = assistant.invoke(msg, config)
   return {"response": message.content}
 
