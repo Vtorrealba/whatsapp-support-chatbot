@@ -4,7 +4,7 @@ import requests
 
 from datetime import datetime
 from langchain import hub
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain.callbacks.manager import AsyncCallbackManagerForToolRun, CallbackManagerForToolRun
 from langchain_core.pydantic_v1 import BaseModel, Field, EmailStr
 from langchain_core.messages import ToolMessage
@@ -16,7 +16,7 @@ from langgraph.graph import StateGraph
 from langgraph.graph.message import AnyMessage, add_messages
 from typing_extensions import TypedDict
 from typing import (
-    Annotated,
+    Annotated,               
     Type, 
     Optional, 
 )
@@ -29,7 +29,7 @@ os.environ['LANGCHAIN_PROJECT'] = "Sweep chatbot"
 os.environ['LANGCHAIN_TRACING_V2'] = "true"
 os.environ['LANGCHAIN_ENDPOINT'] = "https://api.smith.langchain.com"
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # 2. define tool node and tools, define the schemas for the tool inputs
 class CheckCalendar(BaseModel):
@@ -149,7 +149,7 @@ class Assistant:
             
     
     
-llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=1)
+llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
 
 
 #5. bind tools node to llm

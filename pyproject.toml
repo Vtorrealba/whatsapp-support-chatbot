@@ -23,6 +23,11 @@ langchain-anthropic = "^0.1.17"
 langchainhub = "^0.1.20"
 streamlit = "^1.36.0"
 streamlit-chat = "^0.1.1"
+twilio = "^9.2.3"
+python-decouple = "^3.8"
+psycopg2-binary = "^2.9.9"
+python-multipart = "^0.0.9"
+pyngrok = "^7.1.6"
 
 
 [build-system]
