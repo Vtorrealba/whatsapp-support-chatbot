@@ -188,7 +188,7 @@ config = {
 
 
 while True:
-    user_input = input("Client:")
+    user_input = input("client:")
     if user_input.lower() in ["q","quit","exit"]:
         print("assistant: Goodbye!\n")
         break
@@ -196,9 +196,9 @@ while True:
         for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
             for value in event.values():
                 try:
-                    print(f"assistant: {value['messages'].content}\n")
+                    print(f"\nassistant: {value['messages'].content}\n")
                 except:
-                    print(f"tool: {value['messages'][0].content}\n")
+                    print(f"\ntool: {value['messages'][0].content}\n")
 
 
 
