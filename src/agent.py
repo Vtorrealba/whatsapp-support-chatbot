@@ -20,9 +20,10 @@ from typing import (
     Type, 
     Optional, 
 )
-from utils.agent_helpers import _tool_prompt_loader
+from langchain.prompts import ChatPromptTemplate
 
-
+def _tool_prompt_loader(promptName: ChatPromptTemplate) -> str:
+    return promptName.messages[0].prompt.template
 # 1. setup observability and env vars
 dotenv.load_dotenv()
 os.environ['LANGCHAIN_PROJECT'] = "Sweep chatbot"
@@ -32,7 +33,7 @@ LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # 2. define tool node and tools, define the schemas for the tool inputs
-class CheckCalendar(BaseModel):
+class CheckCalendar(BaseModel): 
     date: str = Field(..., description="The date to check availability in the calendar. input should be a future date in MM/DD/YYYY format (e.g., 11/22/2024)")
 class AppointmentBooking(BaseModel):
     name: str = Field(description="The name of the person or company booking the appointment", min_length=2, max_length=100)
@@ -177,28 +178,28 @@ builder.add_edge("tools", "assistant")
 # this is a complete memory for the entire graph.
 memory = SqliteSaver.from_conn_string(":memory:")
 part_1_graph = builder.compile(checkpointer=memory)
-thread_id = "1"
+# thread_id = "1"
 
-config = {
-    "configurable": {
-        "user_id": "21458856",
-        "thread_id": thread_id,
-    }
-}
+# config = {
+#     "configurable": {
+#         "user_id": "21458856",
+#         "thread_id": thread_id,
+#     }
+# }
+# #
 
-
-while True:
-    user_input = input("client:")
-    if user_input.lower() in ["q","quit","exit"]:
-        print("assistant: Goodbye!\n")
-        break
-    else:
-        for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
-            for value in event.values():
-                try:
-                    print(f"\nassistant: {value['messages'].content}\n")
-                except:
-                    print(f"\ntool: {value['messages'][0].content}\n")
+# while True:
+#     user_input = input("client:")
+#     if user_input.lower() in ["q","quit","exit"]:
+#         print("assistant: Goodbye!\n")
+#         break
+#     else:
+#         for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
+#             for value in event.values():
+#                 try:
+#                     print(f"\nassistant: {value['messages'].content}\n")
+#                 except:
+#                     print(f"\ntool: {value['messages'][0].content}\n")
 
 
 
