@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  fastapi:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:12
+    ports:
+      - "5433:5432"  # Changed the host port to 5433 to avoid conflicts
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ngrok:
+    image: wernight/ngrok
+    env_file:
+      - .env
+    command: ngrok http fastapi:8000 --authtoken ${NGROK_AUTHTOKEN} --domain ${NGROK_DOMAIN}
+    ports:
+      - 4040:4040
+
+volumes:
+  postgres_data:
