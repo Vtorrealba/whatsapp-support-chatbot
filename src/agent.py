@@ -154,14 +154,14 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
 
 
 #5. bind tools node to llm
-primary_assistant_prompt = hub.pull("customer_support_chatbot").partial(time=datetime.now())
-part_1_assistant_runnable = primary_assistant_prompt | llm.bind_tools(tools)
+agent_prompt = hub.pull("customer_support_chatbot").partial(time=datetime.now())
+agent_runnable = agent_prompt | llm.bind_tools(tools)
 
 # 6. define graph workflow
 builder = StateGraph(State)
 
 # Define nodes: these do the work
-builder.add_node("assistant", Assistant(part_1_assistant_runnable))
+builder.add_node("assistant", Assistant(agent_runnable))
 builder.add_node("tools", create_tool_node_with_fallback(tools))
 
 
@@ -177,29 +177,5 @@ builder.add_edge("tools", "assistant")
 
 # this is a complete memory for the entire graph.
 memory = SqliteSaver.from_conn_string(":memory:")
-part_1_graph = builder.compile(checkpointer=memory)
-# thread_id = "1"
-
-# config = {
-#     "configurable": {
-#         "user_id": "21458856",
-#         "thread_id": thread_id,
-#     }
-# }
-# #
-
-# while True:
-#     user_input = input("client:")
-#     if user_input.lower() in ["q","quit","exit"]:
-#         print("assistant: Goodbye!\n")
-#         break
-#     else:
-#         for event in part_1_graph.stream({"messages": ("user", user_input)}, config):
-#             for value in event.values():
-#                 try:
-#                     print(f"\nassistant: {value['messages'].content}\n")
-#                 except:
-#                     print(f"\ntool: {value['messages'][0].content}\n")
-
-
+agent_graph = builder.compile(checkpointer=memory)
 

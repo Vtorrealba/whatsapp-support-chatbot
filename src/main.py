@@ -2,15 +2,13 @@ from fastapi import FastAPI, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from decouple import config
+from db.base import Base
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from db.base import Base
 from db.session import engine, SessionLocal 
-from db.models.conversations import Conversation
 from utils.utils import send_message, get_response, logger
 
 Base.metadata.create_all(engine)
-
 class Query(BaseModel):
     message:str
 
@@ -19,6 +17,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost:3000",
+    "https://sweep.ngrok.app"
 ]
 
 app.add_middleware(
@@ -44,23 +43,13 @@ async def reply(request: Request, Body: str = Form(), db: Session = Depends(get_
     print(f"Sending the LangChain response to this number: {whatsapp_number}")
 
     # Get the generated text from the LangChain agent
-    langchain_response = get_response(Body)
-
-    # Store the conversation in the database
-    try:
-        conversation = Conversation(
-            sender=whatsapp_number,
-            message=Body,
-            response=langchain_response
-            )
-        db.add(conversation)
-        db.commit()
-        logger.info(f"Conversation #{conversation.id} stored in database")
-    except SQLAlchemyError as e:
-        db.rollback()
-        logger.error(f"Error storing conversation in database: {e}")
+    langchain_response = get_response(db, Body, whatsapp_number)
     send_message(whatsapp_number, langchain_response)
     return ""
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
