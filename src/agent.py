@@ -35,12 +35,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # 2. define tool node and tools, define the schemas for the tool inputs
 class CheckCalendar(BaseModel): 
     date: str = Field(..., description="The date to check availability in the calendar. input should be a future date in MM/DD/YYYY format (e.g., 11/22/2024)")
+
 class AppointmentBooking(BaseModel):
     name: str = Field(description="The name of the person or company booking the appointment", min_length=2, max_length=100)
     email: EmailStr = Field(..., description="The email of the person or company booking the appointment")
-    phone: str = Field(description="The phone number of the person or company booking the appointment. trim the plus sign if present", pattern=r'^1?\d{9,15}$')
     date: str = Field(..., description="The date and time of the appointment in ISO 8601 format (e.g., 2024-07-27T13:00:00.000Z)")
-    reason: str = Field(description="The reason of the appointment booking", max_length=100)
 
 # tool error handling
 def handle_tool_error(state) -> dict:
@@ -64,7 +63,10 @@ def create_tool_node_with_fallback(tools:list) -> dict:
 
 @tool("check_calendar", args_schema=CheckCalendar)
 def check_calendar(date:str) -> dict:
-    """Check the availability of a date provided by the user in the calendar. convert the date provided by the user to the mm/dd/yyyy format""" # don't ever touch this
+    """
+    Check the availability of a date provided by the user in the calendar. 
+    convert the date provided by the user to the mm/dd/yyyy format 
+    """ # this is being overwritten by the code 13 lines below
     webhook_url = os.getenv("CC_WEBHOOK_URL")
     response = requests.post(webhook_url, json={"start_date": date})    
     if response.status_code == 200:
@@ -77,7 +79,7 @@ def check_calendar(date:str) -> dict:
         return {"error": f"{response.status_code} bad request"}
 
 check_calendar_prompt = hub.pull("check_calendar_tool")
-check_calendar.description = _tool_prompt_loader(check_calendar_prompt)
+check_calendar.description = _tool_prompt_loader(check_calendar_prompt) # overwrite the description
 
 
 book_appointment_prompt = hub.pull("book_appointment_tool")
@@ -88,16 +90,14 @@ class BookAppointmentTool(BaseTool):
     args_schema: Type[BaseModel] = AppointmentBooking
 
     def _run(
-        self, name: str, email: str, phone: str, date: str, reason: str, run_manager: Optional[CallbackManagerForToolRun] = None
+        self, name: str, email: str, date: str, run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Book an appointment."""
         webhook_url = os.getenv("PCP_WEBHOOK_URL")
         payload = {
             "name": name,
             "email": email,
-            "phone": phone,
             "date": date,
-            "reason": reason
         }
         response = requests.post(webhook_url, json=payload)
         if response.status_code == 200:
@@ -106,7 +106,7 @@ class BookAppointmentTool(BaseTool):
             return f"Failed to book appointment. Status code: {response.status_code}"
 
     async def _arun(
-        self, name: str, email: str, phone: str, date: str, reason: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None
+        self, name: str, email: str, date: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None
     ) -> str:
         """Asynchronously book an appointment."""
         # Implement async version if needed
