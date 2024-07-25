@@ -303,4 +303,20 @@ memory = SqliteSaver.from_conn_string(":memory:")
 
 multi_agent_graph = workflow.compile(checkpointer=memory)
 
+thread_id = str(uuid.uuid4())
 
+config = {
+    "configurable": {
+        "thread_id": thread_id,
+    }
+}
+
+while True:
+    user_input = input("client:")
+    if user_input.lower() in ["q","quit","exit"]:
+        print("assistant: Goodbye!\n")
+        break
+    else:
+        for event in multi_agent_graph.stream({"messages":[HumanMessage(content=user_input)]}, config):
+            for value in event.values():
+                    print(f"\nassistant: {value}\n")
