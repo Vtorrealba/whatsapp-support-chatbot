@@ -179,7 +179,7 @@ prompt = ChatPromptTemplate.from_messages(
         ),
     ]
 ).partial(options=str(options), members=", ".join(members))
-llm = ChatOpenAI(model="gpt-4-1106-preview")
+llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
 
 supervisor_chain = (
     prompt
