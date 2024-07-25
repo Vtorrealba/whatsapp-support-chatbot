@@ -12,15 +12,13 @@ from langchain.callbacks.manager import AsyncCallbackManagerForToolRun, Callback
 from langchain_core.pydantic_v1 import BaseModel, Field, EmailStr
 from langchain_core.output_parsers.openai_functions import JsonOutputFunctionsParser
 from langchain_core.messages import ToolMessage, HumanMessage, BaseMessage
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
+from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import tool, BaseTool
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import ToolNode
 from langgraph.graph import END, StateGraph, START
-from langgraph.graph.message import AnyMessage, add_messages
 from typing import Annotated, Type, Optional, Sequence, TypedDict
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from utils.agent_helpers import _print_event
 
 def _tool_prompt_loader(promptName: ChatPromptTemplate) -> str:
     return promptName.messages[0].prompt.template
@@ -175,7 +173,9 @@ prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             "Given the conversation above, who should act next?"
-            " Or should we FINISH? Select one of: {options}",
+            " Or should we FINISH? Select one of: {options}"
+            "you should receive the response and say FINISH"
+            "if you are not sure, say FINISH"
         ),
     ]
 ).partial(options=str(options), members=", ".join(members))
@@ -186,10 +186,6 @@ supervisor_chain = (
     | llm.bind_functions(functions=[function_def], function_call="route")
     | JsonOutputFunctionsParser()
 )
-
-# 3. define state
-class State(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
 
 # The agent state is the input to each node in the graph
 class AgentState(TypedDict):
