@@ -138,16 +138,14 @@ def agent_node(state, agent, name):
 
 members = ["Briefer", "Scheduler"]
 system_prompt = (
-    "You are dylan, a coordinator for a home services company"
-    "your task is to identify the needs of the customer and refer"
-    "to the specific branch of service to address the task at hand"
-    "you will coordinate the conversation within the following workers: {members}."
-    "Given the following user request, respond with the name of the worker"
-    "to act next. Each worker will perform a task and respond with their"
-    "results and status. When finished, respond with FINISH."
+    "You are a supervisor tasked with managing a conversation between the"
+    " following workers:  {members}. Given the following user request,"
+    " respond with the worker to act next. Each worker will perform a"
+    " task and respond with their results and status."
+    
 )
 # the supervisor is another LLM node.
-options = ["FINISH"] + members
+options = members
 function_def = {
     "name": "route",
     "description": "Select the next role.",
@@ -172,14 +170,13 @@ prompt = ChatPromptTemplate.from_messages(
         MessagesPlaceholder(variable_name="messages"),
         (
             "system",
-            "Given the conversation above, who should act next?"
-            " Or should we FINISH? Select one of: {options}"
-            "you should receive the response and say FINISH"
-            "if you are not sure, say FINISH"
+            " Given the conversation above, who should act next?"
+            "{options}",
         ),
     ]
 ).partial(options=str(options), members=", ".join(members))
-llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
+
+llm = ChatOpenAI(model="gpt-4-1106-preview")
 
 supervisor_chain = (
     prompt
@@ -283,11 +280,10 @@ workflow.add_node("supervisor", supervisor_chain)
 
 for member in members:
     # We want our workers to ALWAYS "report back" to the supervisor when done
-    workflow.add_edge(member, "supervisor")
+    workflow.add_edge(member, END)
 # The supervisor populates the "next" field in the graph state
 # which routes to a node or finishes
 conditional_map = {k: k for k in members}
-conditional_map["FINISH"] = END
 workflow.add_conditional_edges("supervisor", lambda x: x["next"], conditional_map)
 # Finally, add entrypoint
 workflow.add_edge(START, "supervisor")
@@ -315,4 +311,7 @@ while True:
     else:
         for event in multi_agent_graph.stream({"messages":[HumanMessage(content=user_input)]}, config):
             for value in event.values():
-                    print(f"\nassistant: {value}\n")
+                    try:
+                        print("\n",f"Chosen node is: {value['next']}","\n")
+                    except:
+                        continue
