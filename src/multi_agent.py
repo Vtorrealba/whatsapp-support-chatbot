@@ -19,9 +19,7 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph import END, StateGraph, START
 from typing import Annotated, Type, Optional, Sequence, TypedDict
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-
-def _tool_prompt_loader(promptName: ChatPromptTemplate) -> str:
-    return promptName.messages[0].prompt.template
+from utils.agent_helpers import _prompt_text_loader
 
 # 1. setup observability and env vars
 dotenv.load_dotenv()
@@ -77,10 +75,10 @@ def check_calendar(date:str) -> dict:
         return {"error": f"{response.status_code} bad request"}
 
 check_calendar_prompt = hub.pull("check_calendar_tool")
-check_calendar.description = _tool_prompt_loader(check_calendar_prompt)
+check_calendar.description = _prompt_text_loader(check_calendar_prompt)
 
 book_appointment_prompt = hub.pull("book_appointment_tool")
-book_appointment_tool_description = _tool_prompt_loader(book_appointment_prompt)
+book_appointment_tool_description = _prompt_text_loader(book_appointment_prompt)
 
 class BookAppointmentTool(BaseTool):
     name = "book_appointment"
@@ -119,15 +117,10 @@ scheduling_tools = [check_calendar, book_appointment]
 
 # define helper that facilitates the creation of the agent
 def create_agent(llm:ChatOpenAI, tools: list, system_prompt:str) -> AgentExecutor:
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system", system_prompt,
-            ),
-            MessagesPlaceholder(variable_name="messages"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ]
-    )
+    prompt = hub.pull(system_prompt)
+    if system_prompt == "sweep_scheduling":
+        prompt = hub.pull(system_prompt).partial(time=datetime.now())
+
     agent = create_openai_tools_agent(tools=tools, llm=llm, prompt=prompt)
     executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
     return executor
@@ -137,13 +130,6 @@ def agent_node(state, agent, name):
     return {"messages": [HumanMessage(content=result["output"], name=name)]}
 
 members = ["Briefer", "Scheduler"]
-system_prompt = (
-    "You are a supervisor tasked with managing a conversation between the"
-    " following workers:  {members}. Given the following user request,"
-    " respond with the worker to act next. Each worker will perform a"
-    " task and respond with their results and status."
-    
-)
 # the supervisor is another LLM node.
 options = members
 function_def = {
@@ -164,17 +150,7 @@ function_def = {
     },
 }
 
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        MessagesPlaceholder(variable_name="messages"),
-        (
-            "system",
-            " Given the conversation above, who should act next?"
-            "{options}",
-        ),
-    ]
-).partial(options=str(options), members=", ".join(members))
+prompt = hub.pull("sweep_agent_routing").partial(options=str(options), members=", ".join(members))
 
 llm = ChatOpenAI(model="gpt-4-1106-preview")
 
@@ -195,81 +171,12 @@ class AgentState(TypedDict):
 # 4. define your agents
 
 # AGENT 1: the scheduling agent
-time = datetime.now()
-scheduling_agent_prompt= f"""
-    You are Rachel, part of the customer support team for sweep, 
-    a home services company located in NY. 
-    Your task is to proceed with the booking of an appointment for an upcoming client. 
-    if you are prompted to work it is because one of your colleagues has already 
-    gathered details about the home project and created a project brief, 
-    and all that's left for you is to gather the necessary details to accomplish your task
 
-    you will need to know the current time to calculate the date
-
-    CURRENT TIME: {time}
-
-    NECESSARY DETAILS:
-
-    - Name: the name of the client booking the appointment
-
-    - Email: the email of the person booking the appointment
-
-    - Address: the place where the service will be provided
-
-    - Date: the date when the appointment starts
-
-    In order to complete your task, you are provided with two tools
-
-    AVAILABLE TOOLS:
-
-    - check_calendar: use this to check calendar availability before proceeding with the other tool.
-
-    - BookAppointmentTool: after checking calendar availability proceed with booking.
-    """
-
-scheduling_agent = create_agent(llm, scheduling_tools, scheduling_agent_prompt)
+scheduling_agent = create_agent(llm, scheduling_tools, "sweep_scheduling")
 scheduling_node = functools.partial(agent_node, agent=scheduling_agent, name="Scheduler")
 
 # AGENT 2: the briefing agent
-briefing_agent_prompt= f"""
-    You are Emily, part of the customer support team for sweep, a home services company located in NY. Your task is to engage with the client to gather details about their new home project,  always show yourself interested and ask clarifying questions to make the client comfortable. You must gather details about the project to provide a comprehensive report on a new project brief and make the client feel good about entrusting us with their new home project.
-
-    Emily's persona:
-
-    - Warm, personal, and professional
-
-    - Knowledgeable about home services and NYC regulations
-
-    - Clear and concise communicator
-
-    - Empathetic and supportive
-
-    - Calm and composed in stressful situations
-
-    Communication style:
-
-    - Use short, friendly messages (no more than 2 sentences per response)
-
-    - Address the customer's needs promptly
-
-    - Ask only one question at a time
-
-    - Wait for the customer's response before moving to the next question
-
-    When responding to a customer message, follow these steps:
-
-    1. Begin with a warm greeting and address the customer's initial query. If no specific service is mentioned, ask how you can help with their home service needs.
-
-    2. Show understanding of the customer's problem and assure them you can help find a solution.
-
-    3. If the customer has additional questions, answer to the best of your ability. Use phrases like "Here in New York City..." or "As per NYC regulations..." to emphasize your local expertise.
-
-    4. If unsure about a specific detail, say "I don't have that specific information, but I can certainly find out for you."
-
-    5. For requests outside your expertise, politely explain and offer to assist in finding the appropriate resource.
-    """
-
-briefing_agent = create_agent(llm, [check_calendar], briefing_agent_prompt)
+briefing_agent = create_agent(llm, [check_calendar], "sweep_briefing")
 briefing_node = functools.partial(agent_node, agent=briefing_agent, name="Briefer")
 
 # 6. define graph workflow
@@ -288,30 +195,8 @@ workflow.add_conditional_edges("supervisor", lambda x: x["next"], conditional_ma
 # Finally, add entrypoint
 workflow.add_edge(START, "supervisor")
 
-graph = workflow.compile()
-
 # this is a complete memory for the entire graph.
 memory = SqliteSaver.from_conn_string(":memory:")
 
 multi_agent_graph = workflow.compile(checkpointer=memory)
 
-thread_id = str(uuid.uuid4())
-
-config = {
-    "configurable": {
-        "thread_id": thread_id,
-    }
-}
-
-while True:
-    user_input = input("client:")
-    if user_input.lower() in ["q","quit","exit"]:
-        print("assistant: Goodbye!\n")
-        break
-    else:
-        for event in multi_agent_graph.stream({"messages":[HumanMessage(content=user_input)]}, config):
-            for value in event.values():
-                    try:
-                        print("\n",f"Chosen node is: {value['next']}","\n")
-                    except:
-                        continue

@@ -1,5 +1,5 @@
 """Helper functions for the agent to enhance visibility and debug easier"""
-
+from langchain.prompts import ChatPromptTemplate
 #pretty print helper
 def _print_event(event: dict, _printed: set, max_length=1500):
     current_state = event.get("dialog_state")
@@ -16,3 +16,5 @@ def _print_event(event: dict, _printed: set, max_length=1500):
             print(msg_repr)
             _printed.add(message.id)
 
+def _prompt_text_loader(promptName: ChatPromptTemplate) -> str:
+    return promptName.messages[0].prompt.template
