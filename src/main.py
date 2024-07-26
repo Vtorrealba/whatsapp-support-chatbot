@@ -22,9 +22,10 @@ app_logger.setLevel(logging.DEBUG)
 app_logger.info("Application startup")
 
 import uuid
+import re
 from fastapi import FastAPI, Form, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from db.session import engine, SessionLocal
@@ -34,6 +35,30 @@ from utils.utils import send_message, logger
 from src.agent import agent_graph
 from src.multi_agent import multi_agent_graph 
 
+class Configurable(BaseModel):
+    phone_number: str = Field(...)
+    thread_id: uuid.UUID = Field(...)
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone_number(cls, value):
+        # Improved regular expression to validate E.164 format
+        e164_pattern = re.compile(r'^\+[1-9]\d{1,14}$')
+        if not e164_pattern.match(value):
+            raise ValueError('Invalid phone number format. It must be in E.164 format: +[country code][number]')
+        
+        # Additional check for minimum length
+        if len(value) < 11:  # +, country code (at least 1 digit), and at least 9 digits
+            raise ValueError('Phone number is too short. It must have at least 9 digits after the country code.')
+        
+        return value
+
+    @field_validator('thread_id')
+    @classmethod
+    def validate_thread_id(cls, value):
+        if not isinstance(value, uuid.UUID):
+            raise ValueError('Invalid UUID format for thread_id')
+        return value
 
 # Create all tables
 logger.info("Creating all tables in the database if they do not exist.")
@@ -77,20 +102,36 @@ def get_or_create_thread_id(db:Session, phone_number: str) -> uuid.UUID:
         logger.error(f"An error occurred while retrieving the conversation: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-def get_agent_message(query:str, phone_number:str, thread_id:uuid.UUID) -> str:
-    configurable = {
-        "configurable":{
-            "user_id": phone_number,
-            "thread_id": thread_id,
+def build_config(phone_number: str, thread_id: uuid.UUID) -> dict:
+    try:
+        # Validate inputs using Configurable
+        config = Configurable(phone_number=phone_number, thread_id=thread_id)
+        
+        # Construct the desired output format
+        return {
+            "configurable": {
+                "user_id": config.phone_number,
+                "thread_id": str(config.thread_id),  # Convert UUID back to string
+            }
         }
-    }
-    state = agent_graph.invoke({"messages": query}, configurable)
+    except ValueError as e:
+        # Handle validation errors
+        raise ValueError(f"Configuration error: {str(e)}")
+
+def get_agent_message(query:str, phone_number:str, thread_id:uuid.UUID) -> str:
+    config = build_config(phone_number, thread_id)
+    state = agent_graph.invoke({"messages": query}, config) # query in bare string
     try:
         agent_message = state["messages"][-1].content
         return agent_message
     except:
         agent_message = state["messages"][-1].tool_calls[0].content
         return agent_message
+def get_multi_agent_message(query:str , phone_number:str, thread_id:uuid.UUID) -> str:
+    config = build_config(phone_number, thread_id)
+    state = multi_agent_graph.invoke({"messages": [query]}, config) # query inside list
+    agent_message = state["messages"][-1].content
+    return agent_message
 
 def save_conversation(db: Session, query:str, phone_number:str, thread_id:uuid.UUID, response:str) -> None:
     new_conversation = Conversation(
@@ -109,7 +150,7 @@ def save_conversation(db: Session, query:str, phone_number:str, thread_id:uuid.U
 
 def get_response(db: Session, query: str, phone_number: str) -> str:
     thread_id = get_or_create_thread_id(db, phone_number)
-    response = get_agent_message(
+    response = get_multi_agent_message( # to invoke legacy use: get_agent_message
         query=query,
         phone_number=phone_number,
         thread_id=thread_id)
