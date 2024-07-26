@@ -9,8 +9,11 @@ from sqlalchemy.orm import Session
 
 account_sid = config("TWILIO_ACCOUNT_SID")
 auth_token = config("TWILIO_AUTH_TOKEN")
-client = Client(account_sid, auth_token)
 twilio_number = config("TWILIO_NUMBER")
+twilio_sms_number = config("TWILIO_SMS_NUMBER")
+danny = config("DANNYS_NUMBER")
+
+client = Client(account_sid, auth_token)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,4 +29,14 @@ def send_message(to_number:str, body_text:str):
     except Exception as e:
         logger.error(f"Error sending message to {to_number}: {e}")
 
-
+send_message(+584124889070, "yo did you get this?")
+def send_sms(to_number:str, body_text:str):
+    try:
+        message = client.messages.create(
+            from_=f"{twilio_sms_number}",
+            body=body_text,
+            to=f"{to_number}"
+            )
+        logger.info(f"Message sent to {to_number}: {message.body}")
+    except Exception as e:
+        logger.error(f"Error sending message to {to_number}: {e}")
