@@ -129,7 +129,7 @@ def agent_node(state, agent, name):
     result = agent.invoke(state)
     return {"messages": [HumanMessage(content=result["output"], name=name)]}
 
-members = ["Briefer", "Scheduler"]
+members = ["NewJob", "Scheduler"]
 # the supervisor is another LLM node.
 options = members
 function_def = {
@@ -150,9 +150,9 @@ function_def = {
     },
 }
 
-prompt = hub.pull("sweep_agent_routing").partial(options=str(options), members=", ".join(members))
+prompt = hub.pull("sweep_agent_routing").partial(options=str(options))
 
-llm = ChatOpenAI(model="gpt-4-1106-preview")
+llm = ChatOpenAI(model="gpt-4o-mini")
 
 supervisor_chain = (
     prompt
@@ -171,18 +171,19 @@ class AgentState(TypedDict):
 # 4. define your agents
 
 # AGENT 1: the scheduling agent
-
-scheduling_agent = create_agent(llm, scheduling_tools, "sweep_scheduling")
+sllm = ChatOpenAI(model="gpt-4")
+scheduling_agent = create_agent(sllm, scheduling_tools, "sweep_scheduling")
 scheduling_node = functools.partial(agent_node, agent=scheduling_agent, name="Scheduler")
 
-# AGENT 2: the briefing agent
-briefing_agent = create_agent(llm, [check_calendar], "sweep_briefing")
-briefing_node = functools.partial(agent_node, agent=briefing_agent, name="Briefer")
+# AGENT 2: the NewJob agent
+Nllm = ChatOpenAI(model="gpt-4")
+NewJob_agent = create_agent(Nllm, [check_calendar], "sweep_briefing")
+NewJob_node = functools.partial(agent_node, agent=NewJob_agent, name="NewJob")
 
 # 6. define graph workflow
 workflow = StateGraph(AgentState)
 workflow.add_node("Scheduler", scheduling_node)
-workflow.add_node("Briefer", briefing_node)
+workflow.add_node("NewJob", NewJob_node)
 workflow.add_node("supervisor", supervisor_chain)
 
 for member in members:
@@ -199,4 +200,3 @@ workflow.add_edge(START, "supervisor")
 memory = SqliteSaver.from_conn_string(":memory:")
 
 multi_agent_graph = workflow.compile(checkpointer=memory)
-

@@ -11,6 +11,8 @@ account_sid = config("TWILIO_ACCOUNT_SID")
 auth_token = config("TWILIO_AUTH_TOKEN")
 twilio_number = config("TWILIO_NUMBER")
 twilio_sms_number = config("TWILIO_SMS_NUMBER")
+twilio_virtual_number = config("TWILIO_VIRTUAL_NUMBER")
+
 danny = config("DANNYS_NUMBER")
 
 client = Client(account_sid, auth_token)
@@ -29,7 +31,6 @@ def send_message(to_number:str, body_text:str):
     except Exception as e:
         logger.error(f"Error sending message to {to_number}: {e}")
 
-send_message(+584124889070, "yo did you get this?")
 def send_sms(to_number:str, body_text:str):
     try:
         message = client.messages.create(

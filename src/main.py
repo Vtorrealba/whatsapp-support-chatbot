@@ -1,26 +1,3 @@
-import logging
-
-# Set up logging configuration
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-
-# Set SQLAlchemy logger to INFO level
-logger = logging.getLogger('sqlalchemy.engine')
-logger.setLevel(logging.DEBUG)
-
-# Set SQLAlchemy dialect logger to DEBUG level for more detailed output
-dialect_logger = logging.getLogger('sqlalchemy.dialects')
-dialect_logger.setLevel(logging.DEBUG)
-
-# Set up your app logger
-app_logger = logging.getLogger('app')
-app_logger.setLevel(logging.DEBUG)
-
-app_logger.info("Application startup")
-
 import uuid
 import re
 from fastapi import FastAPI, Form, Depends, Request, HTTPException
@@ -59,10 +36,6 @@ class Configurable(BaseModel):
         if not isinstance(value, uuid.UUID):
             raise ValueError('Invalid UUID format for thread_id')
         return value
-
-# Create all tables
-logger.info("Creating all tables in the database if they do not exist.")
-Base.metadata.create_all(bind=engine, checkfirst=True)
 
 class Query(BaseModel):
     message: str
