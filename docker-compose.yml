@@ -1,0 +1,23 @@
+services:
+  fastapi:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_NAME=sweep
+      - DB_PORT=5432
+      - DB_USER=lionel
+      - DB_PASSWORD=123
+    env_file:
+      - .env
+
+  ngrok:
+    image: ngrok/ngrok
+    environment:
+      - NGROK_AUTHTOKEN=2jX1BcRIIaHlQlWKlKdyqA1UInv_5SD9EBC681hbra2Gcv4kR
+    command: http fastapi:8000 --domain=sweep.ngrok.app
+    depends_on:
+      - fastapi
