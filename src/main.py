@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from db.session import engine, SessionLocal
-from db.base import Base
-from db.models.conversations import Conversation
+from src.db.session import engine, SessionLocal
+from src.db.base import Base
+from src.db.models.conversations import Conversation
 from utils.utils import send_message, logger
 from src.agent import agent_graph
 from src.multi_agent import multi_agent_graph 

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from db.base import Base
+from src.db.base import Base
 
 class Conversation(Base):
     __tablename__ = "conversations"
