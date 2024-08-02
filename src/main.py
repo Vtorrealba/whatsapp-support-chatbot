@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.db.session import engine, SessionLocal
 from src.db.base import Base
 from src.db.models.conversations import Conversation
-from utils.utils import send_message, logger
+from utils.utils import send_whatsapp, send_sms, logger
 from src.agent import agent_graph
 from src.multi_agent import multi_agent_graph 
 
@@ -101,10 +101,13 @@ def get_agent_message(query:str, phone_number:str, thread_id:uuid.UUID) -> str:
         agent_message = state["messages"][-1].tool_calls[0].content
         return agent_message
 def get_multi_agent_message(query:str , phone_number:str, thread_id:uuid.UUID) -> str:
+    """
+    Receive the message from the user and invoke our graph to get a response
+    """
     config = build_config(phone_number, thread_id)
-    state = multi_agent_graph.invoke({"messages": [query]}, config) # query inside list
+    state = multi_agent_graph.invoke({"messages": [query]}, config) 
     agent_message = state["messages"][-1].content
-    return agent_message
+    return agent_message # return the response from the agent
 
 def save_conversation(db: Session, query:str, phone_number:str, thread_id:uuid.UUID, response:str) -> None:
     new_conversation = Conversation(
@@ -138,16 +141,31 @@ def get_response(db: Session, query: str, phone_number: str) -> str:
 @app.post("/message")
 async def reply(request: Request, Body: str = Form(), db: Session = Depends(get_db)):
     form_data = await request.form()
-    whatsapp_number = form_data['From'].split("whatsapp:")[-1]
-    logger.info(f"Received message from {whatsapp_number}")
+    from_number = form_data['From']
+    
+    # Determine if the message is from WhatsApp or SMS
+    if from_number.startswith("whatsapp:"):
+        whatsapp_number = from_number.split("whatsapp:")[-1]
+        message_type = "whatsapp"
+    else:
+        sms_number = from_number
+        message_type = "sms"
+    
+    logger.info(f"Received message from {message_type} number {from_number}")
     
     try:
         langchain_response = get_response(db, Body, whatsapp_number)
-        send_message(whatsapp_number, langchain_response)
+        
+        if message_type == "whatsapp":
+            send_whatsapp(whatsapp_number, langchain_response)
+        else:
+            send_sms(sms_number, langchain_response)
+        
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Error processing message from {whatsapp_number}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @app.get("/health")
 async def health_check():
