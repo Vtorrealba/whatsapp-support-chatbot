@@ -154,16 +154,19 @@ async def reply(request: Request, Body: str = Form(), db: Session = Depends(get_
     logger.info(f"Received message from {message_type} number {from_number}")
     
     try:
-        langchain_response = get_response(db, Body, whatsapp_number)
-        
         if message_type == "whatsapp":
+            langchain_response = get_response(db, Body, whatsapp_number)
             send_whatsapp(whatsapp_number, langchain_response)
         else:
+            langchain_response = get_response(db, Body, sms_number)
             send_sms(sms_number, langchain_response)
         
         return {"status": "success"}
     except Exception as e:
-        logger.error(f"Error processing message from {whatsapp_number}: {e}")
+        if message_type == "whatsapp":
+            logger.error(f"Error processing whatsapp message from {whatsapp_number}: {e}")
+        else:
+            logger.error(f"Error processing sms message from {sms_number}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
