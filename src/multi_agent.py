@@ -42,7 +42,7 @@ scheduling_tools = [check_calendar, book_appointment]
 def create_agent(llm:ChatOpenAI, tools: list, system_prompt:str) -> AgentExecutor:
     prompt = hub.pull(system_prompt)
     if system_prompt == "sweep_scheduling":
-        prompt = hub.pull(system_prompt).partial(time=datetime.now().strftime("%m/%d/%Y"))
+        prompt = hub.pull(system_prompt).partial(time=datetime.now().strftime("%Y-%m-%d"))
 
     agent = create_openai_tools_agent(tools=tools, llm=llm, prompt=prompt)
     executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
