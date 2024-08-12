@@ -166,3 +166,4 @@ replit.nix
 # VSCode
 #  You can upload your .vscode folder to https://vscode.dev/github/gitignore/templates/python
 .vscode
+.breakpoints
