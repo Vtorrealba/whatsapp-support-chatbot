@@ -11,7 +11,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import END, StateGraph, START
 from typing import Annotated, Sequence, TypedDict
-from src.tools.scheduling import check_calendar, book_appointment
+from src.tools.scheduling import check_calendar, book_appointment, create_brief
 
 
 def handle_tool_error(state) -> dict:
@@ -35,7 +35,7 @@ def create_tool_node_with_fallback(tools:list) -> dict:
 
 
 # pack the tools
-scheduling_tools = [check_calendar, book_appointment]
+scheduling_tools = [check_calendar, book_appointment, create_brief]
 
 
 # define helper that facilitates the creation of the agent

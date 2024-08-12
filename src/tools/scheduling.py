@@ -8,6 +8,13 @@ from langchain.callbacks.manager import AsyncCallbackManagerForToolRun, Callback
 from typing import Type, Optional, Dict
 from utils.agent_helpers import _prompt_text_loader
 
+class ProjectBrief(BaseModel):
+    job_headline: str = Field(..., description="a comprehensive explainatory headline title for the job", min_length=50, max_length=100)
+    job_details: str = Field(..., description="Any specific instructions or special details about the job. This is often, but not always, about the tools needed for the job and who will supply them. For example 'You already have the paint and supplies for each room' or 'the pro will need to bring his own supplies to clean your yard'")
+    job_address: str = Field(..., description="What is the full address of where the job is taking place")
+    time_estimate: str = Field(..., description="Based on the information, how long do we expect the job to take")
+    cost_estimate: str = Field(..., description="Based on the information, how much do we expect the job to cost")
+
 class CancelBooking(BaseModel):
     booking_id: int = Field(..., description="")
 
@@ -51,6 +58,7 @@ def check_calendar(start_date: str, end_date: str) -> Dict:
         return {"error": f"{response.status_code} bad request"}
 
 book_appointment_prompt = hub.pull("book_appointment_tool")
+book_appointment_prompt
 book_appointment_tool_description = _prompt_text_loader(book_appointment_prompt)      
 class BookAppointmentTool(BaseTool):
     name = "book_appointment"
@@ -86,4 +94,13 @@ book_appointment = BookAppointmentTool()
 
 # @tool("cancel_booking", args_schema=CancelBooking)
 # def cancel_booking(booking_id: int) -> str
-    
+@tool("create_brief", args_schema=ProjectBrief)  
+def create_brief(job_headline: str, job_details: str, job_address: str, time_estimate: str, cost_estimate: str) -> Dict[str, str]:
+    project_brief = {
+        "job_headline": job_headline,
+        "job_details": job_details,  # Plain string
+        "job_address": job_address,
+        "time_estimate": time_estimate,  # Plain string
+        "cost_estimate": cost_estimate  # Plain string
+    }
+    return project_brief
