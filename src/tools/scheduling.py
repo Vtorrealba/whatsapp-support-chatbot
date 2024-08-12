@@ -9,7 +9,7 @@ from typing import Type, Optional, Dict
 from utils.agent_helpers import _prompt_text_loader
 
 class ProjectBrief(BaseModel):
-    job_headline: str = Field(..., description="a comprehensive explainatory headline title for the job", min_length=50, max_length=100)
+    job_headline: str = Field(..., description="a comprehensive explainatory headline title for the job")
     job_details: str = Field(..., description="Any specific instructions or special details about the job. This is often, but not always, about the tools needed for the job and who will supply them. For example 'You already have the paint and supplies for each room' or 'the pro will need to bring his own supplies to clean your yard'")
     job_address: str = Field(..., description="What is the full address of where the job is taking place")
     time_estimate: str = Field(..., description="Based on the information, how long do we expect the job to take")
