@@ -96,11 +96,25 @@ book_appointment = BookAppointmentTool()
 # def cancel_booking(booking_id: int) -> str
 @tool("create_brief", args_schema=ProjectBrief)  
 def create_brief(job_headline: str, job_details: str, job_address: str, time_estimate: str, cost_estimate: str) -> Dict[str, str]:
+    """
+    Creates a project brief for a job based on the provided details.
+
+    This function takes in various details about a job, such as the job headline, specific instructions, the job address, 
+    as well as estimated time and cost, and compiles them into a structured dictionary. The resulting dictionary can be 
+    used as a brief to outline the key aspects of the job for further processing or reference.
+
+    Parameters:
+    - job_headline (str):
+    - job_details (str)
+    - job_address (str)
+    - time_estimate (str)
+    - cost_estimate (str)
+    """
     project_brief = {
         "job_headline": job_headline,
-        "job_details": job_details,  # Plain string
+        "job_details": job_details,
         "job_address": job_address,
-        "time_estimate": time_estimate,  # Plain string
-        "cost_estimate": cost_estimate  # Plain string
+        "time_estimate": time_estimate,
+        "cost_estimate": cost_estimate 
     }
     return project_brief
